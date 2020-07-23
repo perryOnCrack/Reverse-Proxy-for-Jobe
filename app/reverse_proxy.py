@@ -9,7 +9,7 @@ import requests
 PATH_working_server = 'working_server.json'
 PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
-TTL_working_server = 10#sys.maxsize # Time Before Expired
+TTL_working_server = 10 # Time Before Expired
 TTL_jobe = 3
 
 app = Flask(__name__)
@@ -26,6 +26,7 @@ def languages():
     # if we need to generate new one or using existing sorted_lang.json.
     # If the file is not there, generate new one.
     if os.path.exists(PATH_working_server) and ((time.time() - os.path.getmtime(PATH_working_server)) < TTL_working_server):
+        print('INFO: Using existing sorted_lang.json...')
         try:
             with open(PATH_sorted_lang, 'r') as f:
                 return jsonify(json.loads(f.read()))
@@ -35,6 +36,7 @@ def languages():
     # Generate new working_server.json.
     # Return empty if any thing goes wrong from this point forward
     # First we read in jobe_list.json
+    print('INFO: Generating new working_server.json and sorted_lang.json...')
     jobe_list = ''
     try:
         with open(PATH_joeb_list, 'r') as f:
@@ -72,10 +74,28 @@ def languages():
             f.write(json.dumps(working_server))
     except:
         print('ERROR: Failed writing ' + PATH_working_server)
-        return ''
 
+    # Compose reponse data from working_server
+    sorted_lang_dict = dict()
+    for server in working_server:
+        for lang in working_server[server]:
+            if lang[0] not in sorted_lang_dict:
+                sorted_lang_dict[lang[0]] = [lang[1]]
+            else:
+                sorted_lang_dict[lang[0]].append(lang[1])
+    sorted_lang_list = list()
+    for lang in sorted_lang_dict:
+        tmp_list = [lang]
+        for version in sorted_lang_dict[lang]:
+            tmp_list.append(version)
+        sorted_lang_list.append(tmp_list)
+    try:
+        with open(PATH_sorted_lang, 'w') as f:
+            f.write(json.dumps(sorted_lang_list))
+    except:
+        print('ERROR: Failed writing ' + PATH_sorted_lang)
 
-    return jsonify(working_server)
+    return jsonify(sorted_lang_list)
 
 
 if __name__ == '__main__':
