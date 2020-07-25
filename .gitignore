@@ -1,2 +1,3 @@
 venv/
 logs/
+restart_emperor.sh

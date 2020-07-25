@@ -9,17 +9,15 @@ import requests
 PATH_working_server = 'working_server.json'
 PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
-TTL_working_server = 10 # Time Before Expired
-TTL_jobe = 3
+TTL_working_server = 10 # working server's expire time
+TTL_jobe_request = 3 # request timeout on jobe server
 
 app = Flask(__name__)
 
 
-#
-# Returns a json containing supporting languages
-# Somthing like this:
-# [["cpp", "7.4.0"], ["python3", "3.6.5"]]
-#
+### Returns a json containing supporting languages
+### Somthing like this:
+### [["cpp", "7.4.0"], ["python3", "3.6.5"]]
 @app.route('/languages')
 def languages():
     # Check working_server.json's mod time to determent 
@@ -49,26 +47,19 @@ def languages():
     for server in jobe_list['jobe']:
         r = None
         lang_list = None
-        for i in range(3):
+        for i in range(3): # try 3 times before moving on.
             try:
-                r = requests.get(server + '/jobe/index.php/restapi/languages', timeout =TTL_jobe)
+                r = requests.get(server + '/jobe/index.php/restapi/languages', timeout =TTL_jobe_request)
                 r.raise_for_status()
+                lang_list = r.json()
+                working_server[server] = lang_list
                 break
-            except requests.exceptions.HTTPError:
+            except requests.exceptions.HTTPError: # anything other than respond code 200
                 print('ERROR: ' + server + ' reposnse with ' + str(r.status_code))
-                continue
+            except ValueError: # it's for r.json()
+                print('ERROR: error decoding json')
             except:
                 print('ERROR: Error when requesting from ' + server)
-                continue
-        try:
-            lang_list = r.json()
-        except ValueError:
-            print('ERROR: error decoding json')
-            continue
-        # We succsessfully retrived a language list at this point.
-        # Now we concider this server is in working state, so we add it to the
-        # list along with its languages list.
-        working_server[server] = lang_list
     try:
         with open(PATH_working_server, 'w') as f:
             f.write(json.dumps(working_server))
@@ -76,6 +67,7 @@ def languages():
         print('ERROR: Failed writing ' + PATH_working_server)
 
     # Compose reponse data from working_server
+    # TODO: Combine the 2 nested loops.
     sorted_lang_dict = dict()
     for server in working_server:
         for lang in working_server[server]:
