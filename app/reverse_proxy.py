@@ -80,6 +80,7 @@ def get_languages():
             f.write(json.dumps(working_server))
     except:
         print('ERROR: Failed writing ' + PATH_working_server)
+        return jsonify([]), 200
 
     # Compose reponse data from working_server
     # TODO: Combine the 2 nested loops.
@@ -103,6 +104,7 @@ def get_languages():
             f.write(json.dumps(sorted_lang_list))
     except:
         print('ERROR: Failed writing ' + PATH_sorted_lang)
+        return jsonify([]), 200
 
     return jsonify(sorted_lang_list), 200
 
