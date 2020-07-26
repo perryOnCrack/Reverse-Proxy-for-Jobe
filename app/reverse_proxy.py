@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import time
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import requests
 
 # Some constants
@@ -14,11 +14,18 @@ TTL_jobe_request = 3 # request timeout on jobe server
 
 app = Flask(__name__)
 
-
-### Returns a json containing supporting languages
-### Somthing like this:
-### [["cpp", "7.4.0"], ["python3", "3.6.5"]]
-@app.route('/languages')
+#==================================================
+# API call: get_languages
+#
+# Returns a json containing supporting languages
+# Somthing like this:
+# [["cpp", "7.4.0"], ["python3", "3.6.5"]]
+# 
+# Returns:
+#  200 on success
+#  400 on ??? (Didn't specified in the API doc)
+#==================================================
+@app.route('/languages', methods = ['GET'])
 def languages():
     # Check working_server.json's mod time to determent 
     # if we need to generate new one or using existing sorted_lang.json.
@@ -41,7 +48,7 @@ def languages():
             jobe_list = json.loads(f.read())
     except:
         print('ERROR: Failed reading "' + PATH_joeb_list + '"')
-        return jsonify('[]')
+        return jsonify([])
     # Then we request each and every server one the list.
     working_server = dict()
     for server in jobe_list['jobe']:
@@ -60,6 +67,8 @@ def languages():
                 print('ERROR: error decoding json')
             except:
                 print('ERROR: Error when requesting from ' + server)
+    
+    # Save to working_server.json.
     try:
         with open(PATH_working_server, 'w') as f:
             f.write(json.dumps(working_server))
@@ -81,6 +90,8 @@ def languages():
         for version in sorted_lang_dict[lang]:
             tmp_list.append(version)
         sorted_lang_list.append(tmp_list)
+    
+    # Save to sorted_lang.json
     try:
         with open(PATH_sorted_lang, 'w') as f:
             f.write(json.dumps(sorted_lang_list))
@@ -89,6 +100,41 @@ def languages():
 
     return jsonify(sorted_lang_list)
 
+#==================================================
+# API call: put_file
+#
+# Like the name sugguests, it put files in the 
+# server via PUT request.
+# 
+# It save the file to this proxy instead of the 
+# actual jobe server until submit_run is called.
+# 
+# Returns:
+#  204 on success
+#  400 on illegal request parameters
+#  403 if the server does not trust the client to
+#   provide a unique file ID
+#==================================================
+@app.route('/files', methods=['PUT'])
+def put_file():
+    return ''
+
+#==================================================
+# API call: post_file
+#
+# Like the name sugguests, it put files in the 
+# server via POST request.
+# 
+# It save the file to this proxy instead of the 
+# actual jobe server until submit_run is called.
+# 
+# Returns:
+#  200 on success
+#  400 on illegal request parameters
+#==================================================
+@app.route('/files', methods=['POST'])
+def post_file():
+    return ''
 
 if __name__ == '__main__':
     app.run()
