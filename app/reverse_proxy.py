@@ -1,7 +1,4 @@
-import os
-import sys
-import json
-import time
+import os, sys, json, time, base64
 from flask import Flask, jsonify, request
 import requests
 
@@ -131,10 +128,13 @@ def get_languages():
 #======================================================
 @app.route('/files/<file_uid>', methods = ['PUT'])
 def put_file(file_uid):
-    # First thing first, check parameter stucture.
-
-    return '', 204
-    return '', 400
+    try:
+        data = request.get_json()
+        with open('file_cache/' + file_uid, 'wb') as f:
+            f.write(base64.b64decode(data['file_contents']))
+        return '', 204
+    except:
+        return '', 400
 
 
 #======================================================
@@ -175,7 +175,7 @@ def check_file(file_uid):
 # 404 when file needed is not found on the proxy
 #======================================================
 @app.route('/runs', methods = ['POST'])
-def submit_runs(file_uid):
+def submit_runs():
     return '', 404
 
 #======================================================
