@@ -9,6 +9,7 @@ import requests
 PATH_working_server = 'working_server.json'
 PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
+PATH_PREFIX_file_cache = 'file_cache/'
 
 TTL_working_server = 10 # working_server.json's expire time, in sec
 TTL_jobe_request = 3 # request timeout on every jobe server, in sec
@@ -128,14 +129,21 @@ def get_languages():
 #======================================================
 @app.route('/files/<file_uid>', methods = ['PUT'])
 def put_file(file_uid):
-    try:
-        data = request.get_json()
-        with open('file_cache/' + file_uid, 'wb') as f:
-            f.write(base64.b64decode(data['file_contents']))
-        return '', 204
-    except:
-        return '', 400
+    # Code for decode base64
+    #f.write(base64.b64decode(data['file_contents']))
 
+    # Check if the file exist or not
+    if os.path.exists(PATH_PREFIX_file_cache + file_uid):
+        # To save cpu cycle, we just ignore it if it exist.
+        return '', 204
+    else:
+        try:
+            data = request.get_data()
+            with open('file_cache/' + file_uid, 'wb') as f:
+                f.write(data)
+            return '', 204
+        except:
+            return '', 400
 
 #======================================================
 # API call: check_file
@@ -153,10 +161,13 @@ def put_file(file_uid):
 #======================================================
 @app.route('/files/<file_uid>', methods = ['HEAD'])
 def check_file(file_uid):
-
-    return '', 204
+    # Check if the file exist or not
+    if os.path.exists(PATH_PREFIX_file_cache + file_uid):
+        # To save cpu cycle, we just ignore it if it exist.
+        return '', 204
+    else:
+        return '', 404
     return '', 400
-    return '', 404
 
 
 #======================================================
@@ -177,6 +188,7 @@ def check_file(file_uid):
 @app.route('/runs', methods = ['POST'])
 def submit_runs():
     return '', 404
+
 
 #======================================================
 # API call: post_file
