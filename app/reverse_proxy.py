@@ -2,6 +2,7 @@ import os, sys, json, time, base64
 from flask import Flask, jsonify, request
 import requests
 
+
 #======================================================
 # Some parameters
 #======================================================
@@ -15,6 +16,9 @@ TTL_working_server = 10 # working_server.json's expire time, in sec
 TTL_jobe_request = 3 # request timeout on every jobe server, in sec
 
 
+#======================================================
+# Flask app initializtion
+#======================================================
 app = Flask(__name__)
 
 
@@ -32,26 +36,27 @@ app = Flask(__name__)
 #======================================================
 @app.route('/languages', methods = ['GET'])
 def get_languages():
-    # Check working_server.json and sorted_lang.json's modification time to determent if we need to generate new ones or using existing ones.
+    # Check working_server.json and sorted_lang.json's modification time to determent 
+    # if we need to generate new ones or using existing ones.
     # If the either one of the files does not exsist, generate new ones.
     if os.path.exists(PATH_working_server) and ((time.time() - os.path.getmtime(PATH_working_server)) < TTL_working_server) and \
         os.path.exists(PATH_sorted_lang) and ((time.time() - os.path.getmtime(PATH_sorted_lang)) < TTL_working_server):
-        print('INFO: Using existing sorted_lang.json...')
+        print('INFO:[get_languages] Using existing sorted_lang.json...')
         try:
             with open(PATH_sorted_lang, 'r') as f:
                 return jsonify(json.loads(f.read())), 200
         except:
-            print('ERROR: Failed reading "' + PATH_sorted_lang + '"')
+            print('ERROR:[get_languages] Failed reading "' + PATH_sorted_lang + '"')
     
     # Generate new working_server.json.
     # First we read in jobe_list.json
-    print('INFO: Generating new working_server.json and sorted_lang.json...')
+    print('INFO:[get_languages] Generating new working_server.json and sorted_lang.json...')
     jobe_list = ''
     try:
         with open(PATH_joeb_list, 'r') as f:
             jobe_list = json.loads(f.read())
     except:
-        print('ERROR: Failed reading "' + PATH_joeb_list + '"')
+        print('ERROR:[get_languages] Failed reading "' + PATH_joeb_list + '"')
         return jsonify([]), 200
     # Then we request each and every server one the list.
     working_server = dict()
@@ -65,19 +70,19 @@ def get_languages():
                 lang_list = r.json()
                 working_server[server['url']] = lang_list
                 break
-            except requests.exceptions.HTTPError: # anything other than respond code 200
-                print('ERROR: ' + server['url'] + ' reposnse with ' + str(r.status_code))
+            except requests.exceptions.HTTPError:
+                print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code))
             except ValueError: # it's for r.json()
-                print('ERROR: error decoding json')
+                print('ERROR:[get_languages] Error decoding json with server: ' + server['url'])
             except:
-                print('ERROR: Error when requesting from ' + server['url'])
+                print('ERROR:[get_languages] Error when requesting from :' + server['url'])
     
     # Save to working_server.json.
     try:
         with open(PATH_working_server, 'w') as f:
             f.write(json.dumps(working_server))
     except:
-        print('ERROR: Failed writing ' + PATH_working_server)
+        print('ERROR:[get_languages] Failed writing ' + PATH_working_server)
         return jsonify([]), 200
 
     # Compose reponse data from working_server
@@ -101,7 +106,7 @@ def get_languages():
         with open(PATH_sorted_lang, 'w') as f:
             f.write(json.dumps(sorted_lang_list))
     except:
-        print('ERROR: Failed writing ' + PATH_sorted_lang)
+        print('ERROR:[get_languages] Failed writing ' + PATH_sorted_lang)
         return jsonify([]), 200
 
     return jsonify(sorted_lang_list), 200
@@ -134,16 +139,18 @@ def put_file(file_uid):
 
     # Check if the file exist or not
     if os.path.exists(PATH_PREFIX_file_cache + file_uid):
-        # To save cpu cycle, we just ignore it if it exist.
+        # To save cpu cycle, we just ignore it if the requested file exists.
         return '', 204
     else:
         try:
             data = request.get_data()
-            with open('file_cache/' + file_uid, 'wb') as f:
+            with open(PATH_PREFIX_file_cache + file_uid, 'wb') as f:
                 f.write(data)
             return '', 204
         except:
-            return '', 400
+            print('ERROR:[put_file] Something went wrong writing file "' + file_uid + '"')
+            return '', 500
+
 
 #======================================================
 # API call: check_file
@@ -167,7 +174,6 @@ def check_file(file_uid):
         return '', 204
     else:
         return '', 404
-    return '', 400
 
 
 #======================================================
@@ -187,7 +193,38 @@ def check_file(file_uid):
 #======================================================
 @app.route('/runs', methods = ['POST'])
 def submit_runs():
-    return '', 404
+    request_data = request.get_json()
+    # Check parameters
+    if 'run_spec' in request_data
+    
+    # Check if the file(s) exist on the proxy
+    file_list = request_data['run_spec']['file_list']
+    for file_pair in file_list:
+        if not os.path.exists(PATH_PREFIX_file_cache + file_pair[0]):
+            return '', 404
+    
+    # TODO: THE MEAT of the whole project: Choose a Jobe server
+    jobe_url = 'http://10.16.173.226:4000'
+
+    # Send files to Jobe is there's any
+    for file_pair in file_list:
+        try:
+            r = None
+            with open(PATH_PREFIX_file_cache + file_pair[0], 'r') as f:
+                r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read()))
+            r.raise_for_status()
+        except:
+            print('ERROR:[submit_run] Somthing went wrong uploading file(s) to: "' + jobe_url + '"' + 'Respond with code: ' + str(r.status_code))
+            return '', 500
+
+    # Send run reuest to jobe and return the result
+    try:
+        r = requests.post(jobe_url + '/jobe/index.php/restapi/runs', json = request_data)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except:
+        print('ERROR:[submit_run] Jobe server: "' + jobe_url + '" respond with code: ' + str(r.status_code))
+        return '', 500
 
 
 #======================================================
@@ -227,6 +264,7 @@ def post_file():
 @app.route('/runresults/id', methods = ['GET'])
 def get_run_status():
     return '', 404
+
 
 if __name__ == '__main__':
     app.run()
