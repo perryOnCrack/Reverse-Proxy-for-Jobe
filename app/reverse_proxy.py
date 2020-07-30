@@ -1,6 +1,7 @@
 import os, sys, json, time, base64
 from flask import Flask, jsonify, request
 import requests
+import utils
 
 
 #======================================================
@@ -68,7 +69,7 @@ def get_languages():
                 r = requests.get(server['url'] + '/jobe/index.php/restapi/languages', timeout =TTL_jobe_request)
                 r.raise_for_status()
                 lang_list = r.json()
-                working_server[server['url']] = lang_list
+                working_server[server['url']] = utils.list_of_list_to_dict(lang_list)
                 break
             except requests.exceptions.HTTPError:
                 print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code))
@@ -87,20 +88,21 @@ def get_languages():
 
     # Compose reponse data from working_server
     # TODO: Combine the 2 nested loops.
+    # This shit is too complex atm, need to be simplified!!
     sorted_lang_dict = dict()
     for server in working_server:
         for lang in working_server[server]:
-            if lang[0] not in sorted_lang_dict:
-                sorted_lang_dict[lang[0]] = [lang[1]]
+            if lang not in sorted_lang_dict:
+                sorted_lang_dict[lang] = [working_server[server][lang]]
             else:
-                sorted_lang_dict[lang[0]].append(lang[1])
+                sorted_lang_dict[lang].append(working_server[server][lang])
     sorted_lang_list = list()
     for lang in sorted_lang_dict:
         tmp_list = [lang]
         for version in sorted_lang_dict[lang]:
             tmp_list.append(version)
         sorted_lang_list.append(tmp_list)
-    
+
     # Save to sorted_lang.json
     try:
         with open(PATH_sorted_lang, 'w') as f:
@@ -195,8 +197,8 @@ def check_file(file_uid):
 def submit_runs():
     request_data = request.get_json()
     # Check parameters
-    if 'run_spec' in request_data
-    
+    #if 'run_spec' in request_data
+
     # Check if the file(s) exist on the proxy
     file_list = request_data['run_spec']['file_list']
     for file_pair in file_list:
