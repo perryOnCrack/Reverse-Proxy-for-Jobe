@@ -1,7 +1,7 @@
 import os, sys, json, time, base64
 from flask import Flask, jsonify, request
 import requests
-import utils
+import utils, load_balance
 
 
 #======================================================
@@ -13,8 +13,8 @@ PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
-TTL_working_server = 10 # working_server.json's expire time, in sec
-TTL_jobe_request = 3 # request timeout on every jobe server, in sec
+TTL_working_server = 10 # working_server.json's expire time (in sec.)
+TTL_jobe_request = 3 # request timeout on every jobe server (in sec.) Subject to change.
 
 
 #======================================================
@@ -73,7 +73,7 @@ def get_languages():
                 break
             except requests.exceptions.HTTPError:
                 print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code))
-            except ValueError: # it's for r.json()
+            except ValueError: # r.json()'s error
                 print('ERROR:[get_languages] Error decoding json with server: ' + server['url'])
             except:
                 print('ERROR:[get_languages] Error when requesting from :' + server['url'])
@@ -186,17 +186,17 @@ def check_file(file_uid):
 # sned to and retrive and return result back to client.
 # 
 # Returns:
-# 200 when the runs is sucessful and with result
-# 202 when the run is pending on jobe
-#  - which is impossible because jobe server only runs
-#  in immediate mode right now
-# 400 on illegal parameter
-# 404 when file needed is not found on the proxy
+#  200 when the runs is sucessful and with result
+#  202 when the run is pending on jobe
+#   - which is impossible because jobe server only runs
+#   in immediate mode right now
+#  400 on illegal parameter
+#  404 when file needed is not found on the proxy
 #======================================================
 @app.route('/runs', methods = ['POST'])
 def submit_runs():
     request_data = request.get_json()
-    # Check parameters
+    # TODO: Check parameters
     #if 'run_spec' in request_data
 
     # Check if the file(s) exist on the proxy
@@ -205,21 +205,33 @@ def submit_runs():
         if not os.path.exists(PATH_PREFIX_file_cache + file_pair[0]):
             return '', 404
     
-    # TODO: THE MEAT of the whole project: Choose a Jobe server
-    jobe_url = 'http://10.16.173.226:4000'
+    # THE MEAT of the whole project: Choose a Jobe server
+    # Read in working_server.json
+    working_server = None
+    try:
+        with open(PATH_working_server, 'r') as f:
+            working_server = json.loads(f.read())
+    except:
+        print('ERROR:[submit_run] Failed reading "' + PATH_working_server + '"')
+        return '', 500
+    
+    # Use random for now
+    jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id'])
+
+    print('INFO:[submit_run] "' + jobe_url + '" is the selected Jobe server!')
 
     # Send files to Jobe is there's any
     for file_pair in file_list:
         try:
             r = None
             with open(PATH_PREFIX_file_cache + file_pair[0], 'r') as f:
-                r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read()))
+                r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read())) # cahnge to json instead of data?
             r.raise_for_status()
         except:
             print('ERROR:[submit_run] Somthing went wrong uploading file(s) to: "' + jobe_url + '"' + 'Respond with code: ' + str(r.status_code))
             return '', 500
 
-    # Send run reuest to jobe and return the result
+    # Send run request to jobe and return the result
     try:
         r = requests.post(jobe_url + '/jobe/index.php/restapi/runs', json = request_data)
         r.raise_for_status()
@@ -238,11 +250,11 @@ def submit_runs():
 # It save the file to this proxy instead of the actual 
 # jobe server until submit_run is called.
 #
-# Hmmm, it isn't implemented by jobe yet. Returns 403
-# in current state.
+# Since isn't implemented by jobe yet, it only return 
+# 403 in the current state.
 # 
 # Returns:
-# ====ONLY RESPONSES 403 IN CURRENT STATE====
+# =========ONLY RESPONSES 403 IN CURRENT STATE=========
 #  200 on success
 #  400 on contents are not a valid base-64 encoding
 #======================================================
@@ -261,7 +273,7 @@ def post_file():
 # Only Returns 404 in current state.
 # 
 # Returns:
-# ====ONLY RESPONSES 404 IN CURRENT STATE====
+# =========ONLY RESPONSES 404 IN CURRENT STATE=========
 #======================================================
 @app.route('/runresults/id', methods = ['GET'])
 def get_run_status():
