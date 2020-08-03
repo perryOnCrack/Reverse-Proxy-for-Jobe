@@ -172,7 +172,6 @@ def put_file(file_uid):
 def check_file(file_uid):
     # Check if the file exist or not
     if os.path.exists(PATH_PREFIX_file_cache + file_uid):
-        # To save cpu cycle, we just ignore it if it exist.
         return '', 204
     else:
         return '', 404
