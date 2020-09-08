@@ -1,4 +1,4 @@
 venv/
 logs/
-restart_emperor.sh
 app/file_cache/
+app/__pycache__/

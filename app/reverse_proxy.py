@@ -13,8 +13,8 @@ PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
-TTL_working_server = 10 # working_server.json's expire time (in sec.)
-TTL_jobe_request = 3 # request timeout on every jobe server (in sec.) Subject to change.
+TTL_working_server = 300 # working_server.json's expire time (in sec.)
+TTL_jobe_request = 1 # request timeout on every jobe server (in sec.) Subject to change.
 
 
 #======================================================
