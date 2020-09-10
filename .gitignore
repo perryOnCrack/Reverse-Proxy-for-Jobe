@@ -1,4 +1,7 @@
 venv/
-logs/
+log/
 app/file_cache/
 app/__pycache__/
+__pycache__/
+rules_for_gunicorn.te
+rules_for_gunicorn.pp

@@ -7,6 +7,8 @@ import utils, load_balance
 #======================================================
 # Some parameters
 #======================================================
+URI_prefix = '/jobe/index.php/restapi'
+
 # File path to resourses
 PATH_working_server = 'working_server.json'
 PATH_joeb_list = 'jobe_list.json'
@@ -35,7 +37,7 @@ app = Flask(__name__)
 #  400 on on illegal request parameters
 #   (but when will that ever happened?)
 #======================================================
-@app.route('/languages', methods = ['GET'])
+@app.route(URI_prefix + '/languages', methods = ['GET'])
 def get_languages():
     # Check working_server.json and sorted_lang.json's modification time to determent 
     # if we need to generate new ones or using existing ones.
@@ -134,7 +136,7 @@ def get_languages():
 #   provide a unique file ID
 #   - NOT impelemented atm.
 #======================================================
-@app.route('/files/<file_uid>', methods = ['PUT'])
+@app.route(URI_prefix + '/files/<file_uid>', methods = ['PUT'])
 def put_file(file_uid):
     # Code for decode base64
     #f.write(base64.b64decode(data['file_contents']))
@@ -168,7 +170,7 @@ def put_file(file_uid):
 #  400 on illegal parameter
 #  404 on file not found
 #======================================================
-@app.route('/files/<file_uid>', methods = ['HEAD'])
+@app.route(URI_prefix + '/files/<file_uid>', methods = ['HEAD'])
 def check_file(file_uid):
     # Check if the file exist or not
     if os.path.exists(PATH_PREFIX_file_cache + file_uid):
@@ -192,7 +194,7 @@ def check_file(file_uid):
 #  400 on illegal parameter
 #  404 when file needed is not found on the proxy
 #======================================================
-@app.route('/runs', methods = ['POST'])
+@app.route(URI_prefix + '/runs', methods = ['POST'])
 def submit_runs():
     request_data = request.get_json()
     # TODO: Check parameters
@@ -257,7 +259,7 @@ def submit_runs():
 #  200 on success
 #  400 on contents are not a valid base-64 encoding
 #======================================================
-@app.route('/files', methods = ['POST'])
+@app.route(URI_prefix + '/files', methods = ['POST'])
 def post_file():
     return '', 403
 
@@ -274,7 +276,7 @@ def post_file():
 # Returns:
 # =========ONLY RESPONSES 404 IN CURRENT STATE=========
 #======================================================
-@app.route('/runresults/id', methods = ['GET'])
+@app.route(URI_prefix + '/runresults/id', methods = ['GET'])
 def get_run_status():
     return '', 404
 
