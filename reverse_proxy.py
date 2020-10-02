@@ -15,7 +15,7 @@ PATH_joeb_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
-TTL_working_server = 300 # working_server.json's expire time (in sec.)
+TTL_working_server = 180 # working_server.json's expire time (in sec.)
 TTL_jobe_request = 1 # request timeout on every jobe server (in sec.) Subject to change.
 
 
@@ -44,22 +44,22 @@ def get_languages():
     # If the either one of the files does not exsist, generate new ones.
     if os.path.exists(PATH_working_server) and ((time.time() - os.path.getmtime(PATH_working_server)) < TTL_working_server) and \
         os.path.exists(PATH_sorted_lang) and ((time.time() - os.path.getmtime(PATH_sorted_lang)) < TTL_working_server):
-        print('INFO:[get_languages] Using existing sorted_lang.json...')
+        print('INFO:[get_languages] Using existing sorted_lang.json...', flush = True)
         try:
             with open(PATH_sorted_lang, 'r') as f:
                 return jsonify(json.loads(f.read())), 200
         except:
-            print('ERROR:[get_languages] Failed reading "' + PATH_sorted_lang + '"')
+            print('ERROR:[get_languages] Failed reading "' + PATH_sorted_lang + '"', flush = True)
     
     # Generate new working_server.json.
     # First we read in jobe_list.json
-    print('INFO:[get_languages] Generating new working_server.json and sorted_lang.json...')
+    print('INFO:[get_languages] Generating new working_server.json and sorted_lang.json...', flush = True)
     jobe_list = ''
     try:
         with open(PATH_joeb_list, 'r') as f:
             jobe_list = json.loads(f.read())
     except:
-        print('ERROR:[get_languages] Failed reading "' + PATH_joeb_list + '"')
+        print('ERROR:[get_languages] Failed reading "' + PATH_joeb_list + '"', flush = True)
         return jsonify([]), 200
     # Then we request each and every server one the list.
     working_server = dict()
@@ -74,18 +74,18 @@ def get_languages():
                 working_server[server['url']] = utils.list_of_list_to_dict(lang_list)
                 break
             except requests.exceptions.HTTPError:
-                print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code))
+                print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code), flush = True)
             except ValueError: # r.json()'s error
-                print('ERROR:[get_languages] Error decoding json with server: ' + server['url'])
+                print('ERROR:[get_languages] Error decoding json with server: ' + server['url'], flush = True)
             except:
-                print('ERROR:[get_languages] Error when requesting from :' + server['url'])
+                print('ERROR:[get_languages] Error when requesting from :' + server['url'], flush = True)
     
     # Save to working_server.json.
     try:
         with open(PATH_working_server, 'w') as f:
             f.write(json.dumps(working_server))
     except:
-        print('ERROR:[get_languages] Failed writing ' + PATH_working_server)
+        print('ERROR:[get_languages] Failed writing ' + PATH_working_server, flush = True)
         return jsonify([]), 200
 
     # Compose reponse data from working_server
@@ -110,7 +110,7 @@ def get_languages():
         with open(PATH_sorted_lang, 'w') as f:
             f.write(json.dumps(sorted_lang_list))
     except:
-        print('ERROR:[get_languages] Failed writing ' + PATH_sorted_lang)
+        print('ERROR:[get_languages] Failed writing ' + PATH_sorted_lang, flush = True)
         return jsonify([]), 200
 
     return jsonify(sorted_lang_list), 200
@@ -152,7 +152,7 @@ def put_file(file_uid):
                 f.write(data)
             return '', 204
         except:
-            print('ERROR:[put_file] Something went wrong writing file "' + file_uid + '"')
+            print('ERROR:[put_file] Something went wrong writing file "' + file_uid + '"', flush = True)
             return '', 500
 
 
@@ -213,13 +213,13 @@ def submit_runs():
         with open(PATH_working_server, 'r') as f:
             working_server = json.loads(f.read())
     except:
-        print('ERROR:[submit_run] Failed reading "' + PATH_working_server + '"')
+        print('ERROR:[submit_run] Failed reading "' + PATH_working_server + '"', flush = True)
         return '', 500
     
     # Use random for now
     jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id'])
 
-    print('INFO:[submit_run] "' + jobe_url + '" is the selected Jobe server!')
+    print('INFO:[submit_run] "' + jobe_url + '" is the selected Jobe server!', flush = True)
 
     # Send files to Jobe is there's any
     for file_pair in file_list:
@@ -229,7 +229,7 @@ def submit_runs():
                 r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read())) # cahnge to json instead of data?
             r.raise_for_status()
         except:
-            print('ERROR:[submit_run] Somthing went wrong uploading file(s) to: "' + jobe_url + '"' + 'Respond with code: ' + str(r.status_code))
+            print('ERROR:[submit_run] Somthing went wrong uploading file(s) to: "' + jobe_url + '"' + 'Respond with code: ' + str(r.status_code), flush = True)
             return '', 500
 
     # Send run request to jobe and return the result
@@ -238,7 +238,7 @@ def submit_runs():
         r.raise_for_status()
         return jsonify(r.json()), 200
     except:
-        print('ERROR:[submit_run] Jobe server: "' + jobe_url + '" respond with code: ' + str(r.status_code))
+        print('ERROR:[submit_run] Jobe server: "' + jobe_url + '" respond with code: ' + str(r.status_code), flush = True)
         return '', 500
 
 
