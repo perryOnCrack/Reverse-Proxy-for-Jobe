@@ -56,13 +56,11 @@ def get_languages():
     # If the either one of the files does not exsist, generate new ones.
     if os.path.exists(PATH_working_server) and ((time.time() - os.path.getmtime(PATH_working_server)) < TTL_working_server) and \
         os.path.exists(PATH_sorted_lang) and ((time.time() - os.path.getmtime(PATH_sorted_lang)) < TTL_working_server):
-        #print('INFO:[get_languages] Using existing sorted_lang.json...', flush = True)
         app.logger.info('[get_languages] Using existing sorted_lang.json...')
         try:
             with open(PATH_sorted_lang, 'r') as f:
                 return jsonify(json.loads(f.read())), 200
         except:
-            #print('ERROR:[get_languages] Failed reading "' + PATH_sorted_lang + '"', flush = True)
             app.logger.error('[get_languages] Failed reading %s', PATH_sorted_lang)
 
     return jsonify(generate_working_server()), 200
@@ -104,7 +102,6 @@ def put_file(file_uid):
                 f.write(data)
             return '', 204
         except:
-            #print('ERROR:[put_file] Something went wrong writing file "' + file_uid + '"', flush = True)
             app.logger.error('[put_file] Something went wrong writing file "%s"', file_uid)
             return '', 500
 
@@ -166,18 +163,15 @@ def submit_runs():
         with open(PATH_working_server, 'r') as f:
             working_server = json.loads(f.read())
     except:
-        #print('ERROR:[submit_run] Failed reading "' + PATH_working_server + '"', flush = True)
         app.logger.error('[submit_run] Failed reading %s', PATH_working_server)
         return '', 500
 
     # Use random for now
     jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id'])
     if jobe_url == 'Nope':
-        #print("ERROR:[submit_run] Don't use __weight as language id!!", flush = True)
         app.logger.error("[submit_run] Don't use __weight as language id!!")
         return '', 500
 
-    #print('INFO:[submit_run] "' + jobe_url + '" is the selected Jobe server!', flush = True)
     app.logger.info('[submit_run] Selected Jobe server: %s', jobe_url)
 
     # Send files to Jobe is there's any
@@ -188,7 +182,6 @@ def submit_runs():
                 r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read())) # cahnge to json instead of data?
             r.raise_for_status()
         except:
-            #print('ERROR:[submit_run] Somthing went wrong uploading file(s) to: "' + jobe_url + '"' + 'Respond with code: ' + str(r.status_code), flush = True)
             app.logger.error('[submit_run] Somthing went wrong when uploading file(s) to: %s. Respond code: %i', jobe_url, r.status_code)
             return '', 500
 
@@ -272,14 +265,12 @@ def force_update():
 #======================================================
 def generate_working_server():
     # First we read in jobe_list.json
-    #print('INFO:[get_languages] Generating new working_server.json and sorted_lang.json...', flush = True)
     app.logger.info('[get_languages] Generating new working_server.json and sorted_lang.json...')
     jobe_list = ''
     try:
         with open(PATH_joeb_list, 'r') as f:
             jobe_list = json.loads(f.read())
     except:
-        #print('ERROR:[get_languages] Failed reading "' + PATH_joeb_list + '"', flush = True)
         app.logger.error('[get_languages] Failed reading %s', PATH_joeb_list)
         return []
     # Then we request each and every server one the list.
@@ -297,13 +288,10 @@ def generate_working_server():
                 working_server[server['url']] = utils.list_of_list_to_dict(lang_list)
                 break
             except requests.exceptions.HTTPError:
-                #print('ERROR:[get_languages] ' + server['url'] + ' reposnse with ' + str(r.status_code), flush = True)
                 app.logger.error('[get_languages] %s reposnse with %i', server['url'], r.status_code)
             except ValueError: # r.json()'s error
-                #print('ERROR:[get_languages] Error decoding json with server: ' + server['url'], flush = True)
                 app.logger.error('[get_languages] Error decoding json with server: %s', server['url'])
             except:
-                #print('ERROR:[get_languages] Error when requesting from :' + server['url'], flush = True)
                 app.logger.error('[get_languages] Error when requesting from : %s', server['url'])
 
     # Save to working_server.json.
@@ -311,7 +299,6 @@ def generate_working_server():
         with open(PATH_working_server, 'w') as f:
             f.write(json.dumps(working_server))
     except:
-        #print('ERROR:[get_languages] Failed writing ' + PATH_working_server, flush = True)
         app.logger.error('[get_languages] Failed writing %s', PATH_working_server)
         return []
 
@@ -336,7 +323,6 @@ def generate_working_server():
         with open(PATH_sorted_lang, 'w') as f:
             f.write(json.dumps(sorted_lang_list))
     except:
-        #print('ERROR:[get_languages] Failed writing ' + PATH_sorted_lang, flush = True)
         app.logger.error('get_languages] Failed writing %s', PATH_sorted_lang)
         return []
 
