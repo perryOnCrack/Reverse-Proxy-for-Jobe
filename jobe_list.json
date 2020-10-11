@@ -2,27 +2,33 @@
     "jobe": [
         {
             "url": "http://10.16.173.225:4000",
-            "api_key": ""
+            "api_key": "",
+            "weight": 1
         },
         {
             "url": "http://10.16.173.229:4000",
-            "api_key": ""
+            "api_key": "",
+            "weight": 1
         },
         {
             "url": "http://10.17.173.34:4000",
-            "api_key": ""
+            "api_key": "",
+            "weight": 1
         },
         {
             "url": "http://10.17.173.34:4100",
-            "api_key": ""
+            "api_key": "",
+            "weight": 1
         },
         {
             "url": "http://10.17.173.35:4000",
-            "api_key": ""
+            "api_key": "",
+            "weight": 1
         },
         {
             "url": "http://10.17.173.35:4100",
-            "api_key": ""
+            "api_key": "",
+            "weight": 100
         }
     ]
 }
