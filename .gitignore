@@ -6,3 +6,5 @@ __pycache__/
 gunicorn.pp
 gunicorn.te
 *.old
+connect_to_github.sh
+.vscode/
