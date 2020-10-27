@@ -3,8 +3,8 @@ log/
 app/file_cache/
 app/__pycache__/
 __pycache__/
-gunicorn.pp
-gunicorn.te
+*.pp
+*.te
 *.old
 connect_to_github.sh
 .vscode/

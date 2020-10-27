@@ -17,7 +17,7 @@ PATH_sorted_lang = 'sorted_lang.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
 # Some timeout params
-TTL_working_server = 180 # working_server.json's expire time (in sec.)
+TTL_working_server = 60 #180 # working_server.json's expire time (in sec.)
 TTL_jobe_get_languages = 1 # request timeout on every jobe server when calling get_languages (in sec.)
 TTL_jobe_submit_runs = 180 # request timeout on every jobe server when calling submit_runs (in sec.)
 
@@ -61,7 +61,7 @@ def get_languages():
             with open(PATH_sorted_lang, 'r') as f:
                 return jsonify(json.loads(f.read())), 200
         except:
-            app.logger.error('[get_languages] Failed reading %s', PATH_sorted_lang)
+            app.logger.error('[get_languages] Failed reading %s', PATH_sorted_lang, exc_info=True)
 
     return jsonify(generate_working_server()), 200
 
@@ -163,7 +163,7 @@ def submit_runs():
         with open(PATH_working_server, 'r') as f:
             working_server = json.loads(f.read())
     except:
-        app.logger.error('[submit_run] Failed reading %s', PATH_working_server)
+        app.logger.error('[submit_run] Failed reading %s', PATH_working_server, exc_info=True)
         return '', 500
 
     # Use random for now
@@ -271,7 +271,7 @@ def generate_working_server():
         with open(PATH_joeb_list, 'r') as f:
             jobe_list = json.loads(f.read())
     except:
-        app.logger.error('[get_languages] Failed reading %s', PATH_joeb_list)
+        app.logger.error('[get_languages] Failed reading %s', PATH_joeb_list, exc_info=True)
         return []
     # Then we request each and every server one the list.
     # TODO: Refactor/rework this part? Need to add weight value into working_server.json
