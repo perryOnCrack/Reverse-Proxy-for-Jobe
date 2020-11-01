@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 import requests
 import utils, load_balance
 import logging
+import redis
 
 
 #======================================================
@@ -12,7 +13,7 @@ URI_prefix = '/jobe/index.php/restapi'
 
 # File path to resourses
 PATH_working_server = 'working_server.json'
-PATH_joeb_list = 'jobe_list.json'
+PATH_jobe_list = 'jobe_list.json'
 PATH_sorted_lang = 'sorted_lang.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
@@ -20,6 +21,12 @@ PATH_PREFIX_file_cache = 'file_cache/'
 TTL_working_server = 60 #180 # working_server.json's expire time (in sec.)
 TTL_jobe_get_languages = 1 # request timeout on every jobe server when calling get_languages (in sec.)
 TTL_jobe_submit_runs = 180 # request timeout on every jobe server when calling submit_runs (in sec.)
+
+
+#======================================================
+# Redis client initializtion
+#======================================================
+redis_cache = redis.StrictRedis(host = 'localhost', port = 6379, db = 1)
 
 
 #======================================================
@@ -259,20 +266,25 @@ def force_update():
 
 
 #======================================================
-# Generate new working_server.json and 
-# sorted_lang.json.
+# Generate new working_server and sorted_lang.
 # Pulled form get_languages to be an method.
+# Return:
+# - True when the update is successful
+# - False when it is not
 #======================================================
 def generate_working_server():
-    # First we read in jobe_list.json
+    # First we set updating flag to yes
+    redis_cache.set('updating', 'yes')
+    # Then read in jobe_list from Redis
     app.logger.info('[get_languages] Generating new working_server.json and sorted_lang.json...')
     jobe_list = ''
-    try:
-        with open(PATH_joeb_list, 'r') as f:
-            jobe_list = json.loads(f.read())
-    except:
-        app.logger.error('[get_languages] Failed reading %s', PATH_joeb_list, exc_info=True)
-        return []
+    if redis_cache.exists('jobe_list') == 1:
+        jobe_list = json.loads(redis_cache.get('jobe_list'))
+    else:
+        app.logger.error('[get_languages] Error reading %s', PATH_jobe_list)
+        redis_cache.set('updating', 'no')
+        return False
+
     # Then we request each and every server one the list.
     # TODO: Refactor/rework this part? Need to add weight value into working_server.json
     working_server = dict()
@@ -295,12 +307,10 @@ def generate_working_server():
                 app.logger.error('[get_languages] Error when requesting from : %s', server['url'])
 
     # Save to working_server.json.
-    try:
-        with open(PATH_working_server, 'w') as f:
-            f.write(json.dumps(working_server))
-    except:
-        app.logger.error('[get_languages] Failed writing %s', PATH_working_server)
-        return []
+    if not redis_cache.set('working_server', json.dumps(working_server), ex=TTL_working_server):
+        app.logger.error('[get_languages] Error writing %s', PATH_working_server)
+        redis_cache.set('updating', 'no')
+        return False
 
     # Compose reponse data from working_server to sorted_lang
     # TODO: Can these be simplified?
@@ -319,14 +329,18 @@ def generate_working_server():
         sorted_lang_list.append(tmp_list)
 
     # Save to sorted_lang.json
-    try:
-        with open(PATH_sorted_lang, 'w') as f:
-            f.write(json.dumps(sorted_lang_list))
-    except:
-        app.logger.error('get_languages] Failed writing %s', PATH_sorted_lang)
-        return []
+    if not redis_cache.set('sorted_lang', json.dumps(sorted_lang_list)):
+        app.logger.error('get_languages] Error writing %s', PATH_sorted_lang)
+        redis_cache.set('updating', 'no')
+        return False
 
-    return sorted_lang_list
+    redis_cache.set('updating', 'no')
+    return True
+
+
+#======================================================
+# 
+#======================================================
 
 
 if __name__ == '__main__':
