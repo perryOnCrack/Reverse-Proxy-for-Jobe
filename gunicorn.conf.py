@@ -2,8 +2,8 @@ import multiprocessing
 
 #bind = '127.0.0.1:4000'
 bind = '0.0.0.0:4000'
-workers = 50
-threads = 4
+workers = 25
+#threads = 4
 timeout = 300 # 5 mins
 #preload_app = True
 

@@ -4,6 +4,7 @@ import requests
 import utils, load_balance
 import logging
 import redis
+import cfg_tasks
 
 
 #======================================================
@@ -12,21 +13,15 @@ import redis
 URI_prefix = '/jobe/index.php/restapi'
 
 # File path to resourses
-PATH_working_server = 'working_server.json'
-PATH_jobe_list = 'jobe_list.json'
-PATH_sorted_lang = 'sorted_lang.json'
+PATH_working_server = 'working_server'
+PATH_jobe_list = 'jobe_list'
+PATH_sorted_lang = 'sorted_lang'
 PATH_PREFIX_file_cache = 'file_cache/'
 
 # Some timeout params
 TTL_working_server = 60 #180 # working_server.json's expire time (in sec.)
 TTL_jobe_get_languages = 1 # request timeout on every jobe server when calling get_languages (in sec.)
 TTL_jobe_submit_runs = 180 # request timeout on every jobe server when calling submit_runs (in sec.)
-
-
-#======================================================
-# Redis client initializtion
-#======================================================
-redis_cache = redis.StrictRedis(host = 'localhost', port = 6379, db = 1)
 
 
 #======================================================
@@ -58,19 +53,12 @@ if __name__ != '__main__':
 #======================================================
 @app.route(URI_prefix + '/languages', methods = ['GET'])
 def get_languages():
-    # Check working_server.json and sorted_lang.json's modification time to determent 
-    # if we need to generate new ones or using existing ones.
-    # If the either one of the files does not exsist, generate new ones.
-    if os.path.exists(PATH_working_server) and ((time.time() - os.path.getmtime(PATH_working_server)) < TTL_working_server) and \
-        os.path.exists(PATH_sorted_lang) and ((time.time() - os.path.getmtime(PATH_sorted_lang)) < TTL_working_server):
-        app.logger.info('[get_languages] Using existing sorted_lang.json...')
-        try:
-            with open(PATH_sorted_lang, 'r') as f:
-                return jsonify(json.loads(f.read())), 200
-        except:
-            app.logger.error('[get_languages] Failed reading %s', PATH_sorted_lang, exc_info=True)
-
-    return jsonify(generate_working_server()), 200
+    # Get data from Celery
+    result = cfg_tasks.get_data.delay('sorted_lang').get()
+    if result[0]:
+        return jsonify(json.loads(result[1])), 200
+    else: 
+        return jsonify([]), 200
 
 
 #======================================================
@@ -164,14 +152,14 @@ def submit_runs():
             return '', 404
 
     # THE MEAT of the whole project: Choose a Jobe server
-    # Read in working_server.json
-    working_server = None
-    try:
-        with open(PATH_working_server, 'r') as f:
-            working_server = json.loads(f.read())
-    except:
-        app.logger.error('[submit_run] Failed reading %s', PATH_working_server, exc_info=True)
-        return '', 500
+
+    # Read in working_server from Celery
+    working_server = cfg_tasks.get_data.delay('working_server').get()
+    if working_server[0]:
+        working_server = json.loads(working_server[1])
+    else:
+        app.logger.error('[Error loading %s]', PATH_working_server)
+        return jsonify([]), 500
 
     # Use random for now
     jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id'])
@@ -262,85 +250,13 @@ def get_run_status():
 #======================================================
 @app.route(URI_prefix + '/force_update', methods = ['GET'])
 def force_update():
-    return jsonify(generate_working_server()), 200
-
-
-#======================================================
-# Generate new working_server and sorted_lang.
-# Pulled form get_languages to be an method.
-# Return:
-# - True when the update is successful
-# - False when it is not
-#======================================================
-def generate_working_server():
-    # First we set updating flag to yes
-    redis_cache.set('updating', 'yes')
-    # Then read in jobe_list from Redis
-    app.logger.info('[get_languages] Generating new working_server.json and sorted_lang.json...')
-    jobe_list = ''
-    if redis_cache.exists('jobe_list') == 1:
-        jobe_list = json.loads(redis_cache.get('jobe_list'))
-    else:
-        app.logger.error('[get_languages] Error reading %s', PATH_jobe_list)
-        redis_cache.set('updating', 'no')
-        return False
-
-    # Then we request each and every server one the list.
-    # TODO: Refactor/rework this part? Need to add weight value into working_server.json
-    working_server = dict()
-    for server in jobe_list['jobe']:
-        r = None
-        lang_list = None
-        for i in range(3): # try 3 times before moving on.
-            try:
-                r = requests.get(server['url'] + '/jobe/index.php/restapi/languages', timeout = TTL_jobe_get_languages)
-                r.raise_for_status()
-                lang_list = r.json()
-                lang_list.append(['__weight', server['weight']])
-                working_server[server['url']] = utils.list_of_list_to_dict(lang_list)
-                break
-            except requests.exceptions.HTTPError:
-                app.logger.error('[get_languages] %s reposnse with %i', server['url'], r.status_code)
-            except ValueError: # r.json()'s error
-                app.logger.error('[get_languages] Error decoding json with server: %s', server['url'])
-            except:
-                app.logger.error('[get_languages] Error when requesting from : %s', server['url'])
-
-    # Save to working_server.json.
-    if not redis_cache.set('working_server', json.dumps(working_server), ex=TTL_working_server):
-        app.logger.error('[get_languages] Error writing %s', PATH_working_server)
-        redis_cache.set('updating', 'no')
-        return False
-
-    # Compose reponse data from working_server to sorted_lang
-    # TODO: Can these be simplified?
-    sorted_lang_dict = dict()
-    for server in working_server:
-        for lang in working_server[server]:
-            if lang not in sorted_lang_dict:
-                sorted_lang_dict[lang] = [working_server[server][lang]]
-            else:
-                sorted_lang_dict[lang].append(working_server[server][lang])
-    sorted_lang_list = list()
-    for lang in sorted_lang_dict:
-        tmp_list = [lang]
-        for version in sorted_lang_dict[lang]:
-            tmp_list.append(version)
-        sorted_lang_list.append(tmp_list)
-
-    # Save to sorted_lang.json
-    if not redis_cache.set('sorted_lang', json.dumps(sorted_lang_list)):
-        app.logger.error('get_languages] Error writing %s', PATH_sorted_lang)
-        redis_cache.set('updating', 'no')
-        return False
-
-    redis_cache.set('updating', 'no')
-    return True
-
-
-#======================================================
-# 
-#======================================================
+    if cfg_tasks.update_jobe_list.delay().get():
+        update_result = cfg_tasks.update_working_server.delay().get()
+        if update_result:
+            data_result = cfg_tasks.get_data.delay('sorted_lang').get()
+            if data_result[0]:
+                return jsonify(json.loads(cfg_tasks.get_data.delay('sorted_lang').get()[1])), 200
+    return jsonify([]), 200
 
 
 if __name__ == '__main__':
