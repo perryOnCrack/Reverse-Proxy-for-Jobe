@@ -1,27 +1,11 @@
 import os, sys, json, time, base64
 from flask import Flask, jsonify, request
 import requests
-import utils, load_balance
+import utils, load_balance, global_vars
 import logging
 import redis
 import cfg_tasks
-
-
-#======================================================
-# Some parameters
-#======================================================
-URI_prefix = '/jobe/index.php/restapi'
-
-# File path to resourses
-PATH_working_server = 'working_server'
-PATH_jobe_list = 'jobe_list'
-PATH_sorted_lang = 'sorted_lang'
-PATH_PREFIX_file_cache = 'file_cache/'
-
-# Some timeout params
-TTL_working_server = 60 #180 # working_server.json's expire time (in sec.)
-TTL_jobe_get_languages = 1 # request timeout on every jobe server when calling get_languages (in sec.)
-TTL_jobe_submit_runs = 180 # request timeout on every jobe server when calling submit_runs (in sec.)
+from utils import send_file_to_jobe
 
 
 #======================================================
@@ -51,7 +35,7 @@ if __name__ != '__main__':
 #  400 on on illegal request parameters
 #   (but when will that ever happened?)
 #======================================================
-@app.route(URI_prefix + '/languages', methods = ['GET'])
+@app.route(global_vars.URI_prefix + '/languages', methods = ['GET'])
 def get_languages():
     # Get data from Celery
     result = cfg_tasks.get_data.delay('sorted_lang').get()
@@ -81,19 +65,19 @@ def get_languages():
 #   provide a unique file ID
 #   - NOT impelemented atm.
 #======================================================
-@app.route(URI_prefix + '/files/<file_uid>', methods = ['PUT'])
+@app.route(global_vars.URI_prefix + '/files/<file_uid>', methods = ['PUT'])
 def put_file(file_uid):
     # Code for decode base64
     #f.write(base64.b64decode(data['file_contents']))
 
     # Check if the file exist or not
-    if os.path.exists(PATH_PREFIX_file_cache + file_uid):
+    if os.path.exists(global_vars.PATH_PREFIX_file_cache + file_uid):
         # To save cpu cycle, we just ignore it if the requested file exists.
         return '', 204
     else:
         try:
             data = request.get_data()
-            with open(PATH_PREFIX_file_cache + file_uid, 'wb') as f:
+            with open(global_vars.PATH_PREFIX_file_cache + file_uid, 'wb') as f:
                 f.write(data)
             return '', 204
         except:
@@ -115,10 +99,10 @@ def put_file(file_uid):
 #  400 on illegal parameter
 #  404 on file not found
 #======================================================
-@app.route(URI_prefix + '/files/<file_uid>', methods = ['HEAD'])
+@app.route(global_vars.URI_prefix + '/files/<file_uid>', methods = ['HEAD'])
 def check_file(file_uid):
     # Check if the file exist or not
-    if os.path.exists(PATH_PREFIX_file_cache + file_uid):
+    if os.path.exists(global_vars.PATH_PREFIX_file_cache + file_uid):
         return '', 204
     else:
         return '', 404
@@ -139,7 +123,7 @@ def check_file(file_uid):
 #  400 on illegal parameter
 #  404 when file needed is not found on the proxy
 #======================================================
-@app.route(URI_prefix + '/runs', methods = ['POST'])
+@app.route(global_vars.URI_prefix + '/runs', methods = ['POST'])
 def submit_runs():
     request_data = request.get_json()
     # TODO: Check parameters
@@ -148,7 +132,7 @@ def submit_runs():
     # Check if the file(s) exist on the proxy
     file_list = request_data['run_spec']['file_list']
     for file_pair in file_list:
-        if not os.path.exists(PATH_PREFIX_file_cache + file_pair[0]):
+        if not os.path.exists(global_vars.PATH_PREFIX_file_cache + file_pair[0]):
             return '', 404
 
     # THE MEAT of the whole project: Choose a Jobe server
@@ -158,43 +142,60 @@ def submit_runs():
     if working_server[0]:
         working_server = json.loads(working_server[1])
     else:
-        app.logger.error('[Error loading %s]', PATH_working_server)
-        return jsonify([]), 500
+        app.logger.error('[Error loading %s]', global_vars.PATH_working_server)
+        return jsonify([]), 500 # TODO: Compose the right respose so coderunner can display error msg. (It can be done, right?)
 
-    # Use random for now
-    jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id'])
-    if jobe_url == 'Nope':
-        app.logger.error("[submit_run] Don't use __weight as language id!!")
-        return '', 500
+    while True: # Auto resend loop
+        # Choose a jobe URL from working_sever
+        jobe_url = load_balance.lb_random(working_server, request_data['run_spec']['language_id']) # Use random for now
+        if jobe_url == 'Nope':
+            app.logger.error("[submit_run] Don't use __weight as language id!!")
+            return '', 500 # TODO: Compose the right respose so coderunner can display error msg. (It can be done, right?)
+        app.logger.info('[submit_run] Selected Jobe server: %s', jobe_url)
 
-    app.logger.info('[submit_run] Selected Jobe server: %s', jobe_url)
+        # Send submit run to the server.
+        # TODO: Log
+        return_data = None
+        return_code = None
+        dead = False
+        # First run:
+        run_result = utils.send_run_to_jobe(jobe_url, request_data)
+        if run_result[0]: # First run success
+            return_data = run_result[1]
+            return_code = 200
+        elif run_result[2] == 404: # First run file not found
+            send_file_result = utils.send_file_to_jobe(jobe_url, file_list)
+            if send_file_result[0]: # Send file(s) success
+                # Second run:
+                run_result = utils.send_run_to_jobe(jobe_url, request_data)
+                if run_result[0]: # Second run success
+                    return_data = run_result[1]
+                    return_code = 200
+                else: # Second run fail
+                    return_data = ''
+                    return_code = 500
+                    dead = True
+            else: # Send file(s) fail
+                return_data = ''
+                return_code = 500
+                dead = True
+        else: # First run fail
+            return_data = ''
+            return_code = 500
+            dead = True
 
-    # Send files to Jobe is there's any
-    for file_pair in file_list:
-        try:
-            r = None
-            with open(PATH_PREFIX_file_cache + file_pair[0], 'r') as f:
-                r = requests.put(jobe_url + '/jobe/index.php/restapi/files/' + file_pair[0], data = json.loads(f.read())) # cahnge to json instead of data?
-            r.raise_for_status()
-        except:
-            app.logger.error('[submit_run] Somthing went wrong when uploading file(s) to: %s. Respond code: %i', jobe_url, r.status_code)
-            return '', 500
+        if dead:
+            cfg_tasks.sus_jobe.delay(jobe_url)
+            working_server.pop(jobe_url) # Exclude the jobe from local var
+            if working_server == {}: # No more working server to choose
+                app.logger.error("[submit_run] Running out of working server!!")
+                return_data = ''
+                return_code = 500
+                break
+        else:
+            break
 
-    # Send run request to jobe and return the result
-    try:
-        r = None
-        r = requests.post(jobe_url + '/jobe/index.php/restapi/runs', json = request_data, timeout = TTL_jobe_submit_runs)
-        r.raise_for_status()
-        return jsonify(r.json()), r.status_code
-    except requests.Timeout:
-        app.logger.error('[submit_run] Jobe server: %s timeout, maybe the server is dead?', jobe_url)
-        return '', 408
-    except requests.ConnectionError:
-        app.logger.error('[submit_run] Error connecting to Jobe server: %s, maybe the server is dead?', jobe_url)
-        return '', 500
-    except:
-        app.logger.error('[submit_run] Jobe server: %s respond with code: %i', jobe_url , r.status_code)
-        return '', r.status_code
+    return jsonify(return_data), return_code # TODO: Compose the right respose so coderunner can display error msg.
 
 
 #======================================================
@@ -214,7 +215,7 @@ def submit_runs():
 #  200 on success
 #  400 on contents are not a valid base-64 encoding
 #======================================================
-@app.route(URI_prefix + '/files', methods = ['POST'])
+@app.route(global_vars.URI_prefix + '/files', methods = ['POST'])
 def post_file():
     return '', 403
 
@@ -231,7 +232,7 @@ def post_file():
 # Returns:
 # =========ONLY RESPONSES 404 IN CURRENT STATE=========
 #======================================================
-@app.route(URI_prefix + '/runresults/id', methods = ['GET'])
+@app.route(global_vars.URI_prefix + '/runresults/id', methods = ['GET'])
 def get_run_status():
     return '', 404
 
@@ -248,7 +249,7 @@ def get_run_status():
 # Returns:
 # 
 #======================================================
-@app.route(URI_prefix + '/force_update', methods = ['GET'])
+@app.route(global_vars.URI_prefix + '/force_update', methods = ['GET'])
 def force_update():
     if cfg_tasks.update_jobe_list.delay().get():
         update_result = cfg_tasks.update_working_server.delay().get()

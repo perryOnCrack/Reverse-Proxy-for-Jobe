@@ -1,15 +1,9 @@
 from celery import Celery
-import json, requests, redis, utils, time
+import json, requests, redis, utils, time, global_vars
 from celery.utils.log import get_task_logger
 
 logger = get_task_logger('task')
 
-# File path to resourses
-PATH_jobe_list = 'jobe_list.json'
-
-# Some timeout params
-TTL_working_server = 60 #180 # working_server.json's expire time (in sec.)
-TTL_jobe_get_languages = 1 # request timeout on every jobe server when calling get_languages (in sec.)
 
 #======================================================
 # Redis client object initializtion
@@ -56,7 +50,7 @@ def update_working_server():
         lang_list = None
         for i in range(3): # try 3 times before moving on.
             try:
-                r = requests.get(server['url'] + '/jobe/index.php/restapi/languages', timeout = TTL_jobe_get_languages)
+                r = requests.get(server['url'] + '/jobe/index.php/restapi/languages', timeout = global_vars.TTL_jobe_get_languages)
                 r.raise_for_status()
                 lang_list = r.json()
                 lang_list.append(['__weight', server['weight']])
@@ -86,12 +80,12 @@ def update_working_server():
         sorted_lang_list.append(tmp_list)
 
     # Save to sorted_lang in Redis.
-    if not redis_cache.set('sorted_lang', json.dumps(sorted_lang_list), ex=TTL_working_server):
+    if not redis_cache.set('sorted_lang', json.dumps(sorted_lang_list), ex=global_vars.TTL_working_server):
         redis_cache.set('updating', 'no')
         return False
 
     # Save to working_server in Redis.
-    if not redis_cache.set('working_server', json.dumps(working_server), ex=TTL_working_server):
+    if not redis_cache.set('working_server', json.dumps(working_server), ex=global_vars.TTL_working_server):
         redis_cache.set('updating', 'no')
         return False
     
@@ -150,12 +144,40 @@ def get_data(data_name):
 @app.task
 def update_jobe_list():
     try:
-        with open(PATH_jobe_list, 'r') as f:
+        with open(global_vars.PATH_jobe_list, 'r') as f:
             if not redis_cache.set('jobe_list', f.read()):
                 return False
     except:
         return False
     return True
+
+
+#======================================================
+# Task: sus_jobe(jobe_url)
+#
+# It checks wether the jobe sever(id by jobe_url) is
+# dead or not and changing data in redis if needed.
+#
+# This task is called when the proxy's submit_run
+# suspect one of the jobes(id by jobe_url) is dead.
+# 
+# Return:
+# - Nothing
+#======================================================
+@app.task
+def sus_jobe(jobe_url):
+    # just call update_working_server() for now
+    update_working_server() # TODO: Change to handle the specific one.
+    '''
+    # Test that jobe like in update_working_server()
+    for i in range(3): # try 3 times before moving on.
+            try:
+                r = requests.get(jobe_url + '/jobe/index.php/restapi/languages', timeout = global_vars.TTL_jobe_get_languages)
+                r.raise_for_status()
+                result = r.json() 
+                break
+            except:
+    '''
 
 
 #======================================================

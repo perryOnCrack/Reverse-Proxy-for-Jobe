@@ -8,3 +8,4 @@ __pycache__/
 *.old
 connect_to_github.sh
 .vscode/
+file_cache/*
