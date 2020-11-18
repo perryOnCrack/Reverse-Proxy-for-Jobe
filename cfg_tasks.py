@@ -146,8 +146,10 @@ def update_jobe_list():
     try:
         with open(global_vars.PATH_jobe_list, 'r') as f:
             if not redis_cache.set('jobe_list', f.read()):
+                logger.error('[update_jobe_list] Writing jobe_list to redis failed.')
                 return False
     except:
+        logger.error('[update_jobe_list] Other error writing jobe_list to redis.', exc_info=all)
         return False
     return True
 

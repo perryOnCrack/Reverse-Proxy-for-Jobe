@@ -135,14 +135,12 @@ def submit_runs():
         if not os.path.exists(global_vars.PATH_PREFIX_file_cache + file_pair[0]):
             return '', 404
 
-    # THE MEAT of the whole project: Choose a Jobe server
-
     # Read in working_server from Celery
     working_server = cfg_tasks.get_data.delay('working_server').get()
     if working_server[0]:
         working_server = json.loads(working_server[1])
     else:
-        app.logger.error('[Error loading %s]', global_vars.PATH_working_server)
+        app.logger.error('[submit_run] Error loading working_server')
         return jsonify([]), 500 # TODO: Compose the right respose so coderunner can display error msg. (It can be done, right?)
 
     while True: # Auto resend loop
@@ -166,22 +164,20 @@ def submit_runs():
         elif run_result[2] == 404: # First run file not found
             send_file_result = utils.send_file_to_jobe(jobe_url, file_list)
             if send_file_result[0]: # Send file(s) success
+                app.logger.info('[submit_run] File(s) sent to %s successfully', jobe_url)
                 # Second run:
                 run_result = utils.send_run_to_jobe(jobe_url, request_data)
                 if run_result[0]: # Second run success
                     return_data = run_result[1]
                     return_code = 200
                 else: # Second run fail
-                    return_data = ''
-                    return_code = 500
+                    app.logger.warning('[submit_runs] Jobe: %s fail running submit, reason: %i, %s', jobe_url, run_result[2], run_result[3])
                     dead = True
             else: # Send file(s) fail
-                return_data = ''
-                return_code = 500
+                app.logger.warning('[submit_runs] Fail sending file to Jobe: %s, reason: %i, %s', jobe_url, send_file_result[1], send_file_result[2])
                 dead = True
         else: # First run fail
-            return_data = ''
-            return_code = 500
+            app.logger.warning('[submit_runs] Jobe: %s fail running submit, reason: %i, %s', jobe_url, run_result[2], run_result[3])
             dead = True
 
         if dead:

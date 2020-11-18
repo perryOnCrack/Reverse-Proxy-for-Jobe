@@ -4,9 +4,7 @@
 URI_prefix = '/jobe/index.php/restapi'
 
 # File path to resourses
-PATH_working_server = 'working_server'
-PATH_jobe_list = 'jobe_list'
-PATH_sorted_lang = 'sorted_lang'
+PATH_jobe_list = 'jobe_list.json'
 PATH_PREFIX_file_cache = 'file_cache/'
 
 # Some timeout params
