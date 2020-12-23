@@ -2,12 +2,44 @@
 
 ## What's this thing?
 
-### It's a [reverse proxy ](https://en.wikipedia.org/wiki/Reverse_proxy) made to proxy multiple Jobe Sandboxes for load distrubution and backend failure hiding(?).
+### It's a [reverse proxy ](https://en.wikipedia.org/wiki/Reverse_proxy) made to proxy multiple Jobe Sandboxes for load distrubution.
 
-It uses Gunicorn + Flask for its REST API, Celery for configurations' background tasks and Redis as a shared memory space for all the forked processes and Celery's message queue and backend.
+It follows Jobe's API so it can be deployed without changing Coderunner and Jobe's code.
 
-## This README seems to be a bit empty...
+Coderunner sees it as a normal Jobe and Jobe sees it as a normal client.
 
-Yeah, I know. I'll put more info when I got more time... 
+---
 
-Or leave me some questions in [issues](https://github.com/perryOnCrack/Reverse-Proxy-for-Jobe/issues) so I know what info you want to know about this project.
+## Installation
+
+There's quite a lot of compoments that needs to be connected in order to work.
+
+### First thing first, clone this repo onto your machine
+
+```
+git clone https://github.com/perryOnCrack/Reverse-Proxy-for-Jobe.git
+```
+
+### Virtual Enviroment
+
+Before installing any packages, I suggest using a virtual enviorment for this application. If you don't want to, feel free to skip this step.
+
+The commands below use [python's own virtual enviorment](https://docs.python.org/3/library/venv.html)
+
+* Create a new virtual enviorment
+
+```
+python3 -m venv /path/to/new/virtual/environment
+```
+
+* Activate the virtual enviorment
+
+```
+source /path/to/new/virtual/environment/bin/activate
+```
+
+After activating the virtual enviorment, you should be able to see your virtual enviorment name appears on your shell prompt.
+
+---
+
+If you have any questions feel free to submit an [issue](https://github.com/perryOnCrack/Reverse-Proxy-for-Jobe/issues),
