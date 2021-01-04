@@ -34,7 +34,7 @@ There's quite a lot of compoments that needs to be connected in order to work.
 git clone https://github.com/perryOnCrack/Reverse-Proxy-for-Jobe.git
 ```
 
-### Virtual Enviroment
+### Set Up Virtual Enviroment
 
 Before installing any packages, I suggest using a virtual enviorment for this application. If you don't want to use it, feel free to skip this step.
 
@@ -68,9 +68,17 @@ If you're using virtual enviorment, be sure to check this folder to see if it ac
 [virtual environment path]/lib/python3.X/site-packages/
 ```
 
-### Setup Gunicorn
-### Setup Celery
-### Setup Redis
+### Set Up Gunicorn
+
+
+
+### Set Up Celery
+
+
+
+### Set Up Redis
+
+
 
 ---
 
