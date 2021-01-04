@@ -142,6 +142,12 @@ def submit_runs():
     else:
         app.logger.error('[submit_run] Error loading working_server')
         return jsonify([]), 500 # TODO: Compose the right respose so coderunner can display error msg. (It can be done, right?)
+    
+    # Delete every server that doesn't support the language(lang_id)
+    # Pop the list of servers to be excluded
+    # Why do I write it like this? It's unreadable.
+    for server in [server for server in working_server if request_data['run_spec']['language_id'] not in working_server[server]]:
+        working_server.pop(server, None)
 
     while True: # Auto resend loop
         # Choose a jobe URL from working_sever
