@@ -1,0 +1,13 @@
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+Type=notify
+User=jobe_rp
+Group=jobe_rp
+WorkingDirectory=/var/www/reverse_proxy_2
+ExecStart=/var/www/reverse_proxy_2/venv/bin/gunicorn -c /var/www/reverse_proxy_2/gunicorn.conf.py reverse_proxy:app
+
+[Install]
+WantedBy=multi-user.target
